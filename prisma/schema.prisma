@@ -1,0 +1,198 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model AuditLog {
+  id        Int      @id @default(autoincrement())
+  tenantId  Int
+  userId    Int
+  action    String
+  timestamp DateTime @default(now())
+  details   Json?
+  Tenant    Tenant   @relation(fields: [tenantId], references: [id])
+  User      User     @relation(fields: [userId], references: [id])
+}
+
+model Booking {
+  id                                Int           @id @default(autoincrement())
+  tenantId                          Int
+  userId                            Int
+  nutritionistId                    Int
+  date                              DateTime
+  status                            BookingStatus @default(PENDING)
+  notes                             String?
+  User_Booking_nutritionistIdToUser User          @relation("Booking_nutritionistIdToUser", fields: [nutritionistId], references: [id])
+  Tenant                            Tenant        @relation(fields: [tenantId], references: [id])
+  User_Booking_userIdToUser         User          @relation("Booking_userIdToUser", fields: [userId], references: [id])
+}
+
+model ClientProgress {
+  id                 Int       @id @default(autoincrement())
+  userId             Int
+  date               DateTime  @default(now())
+  weight             Float
+  height             Float
+  bodyFat            Float
+  muscleMass         Float
+  waistCircumference Float
+  notes              String?
+  User               User      @relation(fields: [userId], references: [id])
+  Profile            Profile[]
+}
+
+model Food {
+  id          Int    @id @default(autoincrement())
+  tenantId    Int
+  name        String
+  calories    Float
+  carbs       Float
+  fats        Float
+  proteins    Float
+  vitamins    Json
+  minerals    Json
+  portionSize String
+  unit        String @default("g")
+  createdBy   Int
+  User        User   @relation(fields: [createdBy], references: [id])
+  Tenant      Tenant @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId, name], map: "idx_food_tenant_name")
+}
+
+model Meal {
+  id         Int      @id @default(autoincrement())
+  mealPlanId Int
+  name       String
+  foodItems  Json
+  MealPlan   MealPlan @relation(fields: [mealPlanId], references: [id])
+}
+
+model MealPlan {
+  id             Int      @id @default(autoincrement())
+  tenantId       Int
+  nutritionistId Int
+  title          String
+  description    String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime
+  Meal           Meal[]
+  User           User     @relation(fields: [nutritionistId], references: [id])
+  Tenant         Tenant   @relation(fields: [tenantId], references: [id])
+}
+
+model MedicalHistory {
+  id            Int       @id @default(autoincrement())
+  userId        Int
+  condition     String
+  description   String
+  dateDiagnosed DateTime
+  severity      Severity
+  User          User      @relation(fields: [userId], references: [id])
+  Profile       Profile[]
+}
+
+model Message {
+  id                            Int      @id @default(autoincrement())
+  tenantId                      Int
+  senderId                      Int
+  receiverId                    Int
+  content                       String   @default("encrypted-content")
+  timestamp                     DateTime @default(now())
+  User_Message_receiverIdToUser User     @relation("Message_receiverIdToUser", fields: [receiverId], references: [id])
+  User_Message_senderIdToUser   User     @relation("Message_senderIdToUser", fields: [senderId], references: [id])
+  Tenant                        Tenant   @relation(fields: [tenantId], references: [id])
+}
+
+model Profile {
+  id             Int              @id @default(autoincrement())
+  userId         Int              @unique
+  bio            String?
+  specialty      String?
+  phoneNumber    String?
+  location       String?
+  User           User             @relation(fields: [userId], references: [id])
+  ClientProgress ClientProgress[]
+  MedicalHistory MedicalHistory[]
+}
+
+model Tenant {
+  id          Int           @id @default(autoincrement())
+  name        String
+  AuditLog    AuditLog[]
+  Booking     Booking[]
+  Food        Food[]
+  MealPlan    MealPlan[]
+  Message     Message[]
+  Transaction Transaction[]
+  User        User[]
+}
+
+model Transaction {
+  id        Int               @id @default(autoincrement())
+  tenantId  Int
+  userId    Int
+  amount    Float
+  currency  String            @default("EUR")
+  status    TransactionStatus @default(PENDING)
+  createdAt DateTime          @default(now())
+  Tenant    Tenant            @relation(fields: [tenantId], references: [id])
+  User      User              @relation(fields: [userId], references: [id])
+}
+
+model User {
+  id                                   Int              @id @default(autoincrement())
+  email                                String           @unique
+  password                             String           @default("bcrypt-hash")
+  name                                 String
+  role                                 Role             @default(USER)
+  tenantId                             Int
+  createdAt                            DateTime         @default(now())
+  updatedAt                            DateTime
+  AuditLog                             AuditLog[]
+  Booking_Booking_nutritionistIdToUser Booking[]        @relation("Booking_nutritionistIdToUser")
+  Booking_Booking_userIdToUser         Booking[]        @relation("Booking_userIdToUser")
+  ClientProgress                       ClientProgress[]
+  Food                                 Food[]
+  MealPlan                             MealPlan[]
+  MedicalHistory                       MedicalHistory[]
+  Message_Message_receiverIdToUser     Message[]        @relation("Message_receiverIdToUser")
+  Message_Message_senderIdToUser       Message[]        @relation("Message_senderIdToUser")
+  Profile                              Profile?
+  Transaction                          Transaction[]
+  Tenant                               Tenant           @relation(fields: [tenantId], references: [id])
+
+  @@index([email, tenantId], map: "idx_user_email_tenant")
+}
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  CANCELED
+  COMPLETED
+}
+
+enum Role {
+  USER
+  NUTRITIONIST
+  ADMIN
+  SUPERADMIN
+}
+
+enum Severity {
+  MILD
+  MODERATE
+  SEVERE
+}
+
+enum TransactionStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+}
